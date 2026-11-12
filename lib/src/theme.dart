@@ -229,6 +229,7 @@ class OrgThemeData {
     this.citationColor,
     this.transcludeColor,
     this.rootPadding,
+    this.codeTextStyle,
     Iterable<Color>? levelColors,
     Map<String, TextStyle>? srcTheme,
   }) : levelColors = levelColors == null
@@ -257,6 +258,28 @@ class OrgThemeData {
 
   final EdgeInsets? rootPadding;
 
+  /// Merged into the style of code: inline code and verbatim, inline and
+  /// block source, example and export blocks, and fixed-width areas. Set
+  /// for example a monospace `fontFamily` here when the document is shown
+  /// in a proportional font. Null leaves them in the surrounding font.
+  ///
+  /// A color here overrides [codeColor]. In highlighted source, a [srcTheme]
+  /// entry that sets its own `fontFamily` still wins for that token. A style
+  /// with `inherit: false` replaces the surrounding style instead of being
+  /// merged into it; it still falls back to [codeColor] if it has no color.
+  final TextStyle? codeTextStyle;
+
+  /// Returns [base] with the color set to [codeColor] and [codeTextStyle]
+  /// merged on top. If [codeTextStyle] has `inherit: false`, returns it in
+  /// place of [base], with [codeColor] if it has no color of its own.
+  TextStyle codeStyle(TextStyle base) {
+    final code = codeTextStyle;
+    if (code != null && !code.inherit) {
+      return code.copyWith(color: code.color ?? codeColor);
+    }
+    return base.copyWith(color: codeColor).merge(code);
+  }
+
   Color? levelColor(int level) {
     if (level >= kInlineTaskMinLevel) return codeColor; // inline task
     final levelColors = this.levelColors;
@@ -269,7 +292,7 @@ class OrgThemeData {
         return base.copyWith(fontWeight: FontWeight.bold);
       case OrgStyle.verbatim: // fallthrough
       case OrgStyle.code:
-        return base.copyWith(color: codeColor);
+        return codeStyle(base);
       case OrgStyle.italic:
         return base.copyWith(fontStyle: FontStyle.italic);
       case OrgStyle.strikeThrough:
@@ -309,6 +332,7 @@ class OrgThemeData {
     Iterable<Color>? levelColors,
     Map<String, TextStyle>? srcTheme,
     EdgeInsets? rootPadding,
+    TextStyle? codeTextStyle,
   }) => OrgThemeData(
     todoColor: todoColor ?? this.todoColor,
     doneColor: doneColor ?? this.doneColor,
@@ -329,6 +353,7 @@ class OrgThemeData {
     levelColors: levelColors ?? this.levelColors,
     srcTheme: srcTheme ?? this.srcTheme,
     rootPadding: rootPadding ?? this.rootPadding,
+    codeTextStyle: codeTextStyle ?? this.codeTextStyle,
   );
 
   @override
@@ -355,7 +380,8 @@ class OrgThemeData {
         transcludeColor == other.transcludeColor &&
         listEquals(levelColors, other.levelColors) &&
         mapEquals(srcTheme, other.srcTheme) &&
-        rootPadding == other.rootPadding;
+        rootPadding == other.rootPadding &&
+        codeTextStyle == other.codeTextStyle;
   }
 
   @override
@@ -379,7 +405,7 @@ class OrgThemeData {
     levelColors == null ? null : Object.hashAll(levelColors!),
     srcTheme == null ? null : Object.hashAll(srcTheme!.keys),
     srcTheme == null ? null : Object.hashAll(srcTheme!.values),
-    rootPadding,
+    Object.hash(rootPadding, codeTextStyle),
   );
 
   // ignore: prefer_constructors_over_static_methods
@@ -407,6 +433,7 @@ class OrgThemeData {
       levelColors: _lerpColorLists(a?.levelColors, b?.levelColors, t),
       srcTheme: _lerpSrcThemes(a?.srcTheme, b?.srcTheme, t),
       rootPadding: EdgeInsets.lerp(a?.rootPadding, b?.rootPadding, t),
+      codeTextStyle: TextStyle.lerp(a?.codeTextStyle, b?.codeTextStyle, t),
     );
   }
 

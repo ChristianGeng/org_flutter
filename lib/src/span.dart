@@ -508,9 +508,15 @@ class OrgSpanBuilder {
     throw Exception('Unknown OrgNode type: $element');
   }
 
+  /// [text] with the current search matches highlighted. A match is drawn
+  /// as a widget, which doesn't inherit the enclosing span's style, so it
+  /// gets [matchStyle] if given (the fully resolved style at that place),
+  /// otherwise [style]. When [matchStyle] is given, a null [style] stays
+  /// null, so the text around the matches inherits the enclosing style.
   InlineSpan highlightedSpan(
     String text, {
     TextStyle? style,
+    TextStyle? matchStyle,
     GestureRecognizer? recognizer,
     bool charWrap = false,
   }) {
@@ -522,13 +528,13 @@ class OrgSpanBuilder {
         recognizer: recognizer,
       );
     } else {
-      style ??= DefaultTextStyle.of(context).style;
+      if (matchStyle == null) style ??= DefaultTextStyle.of(context).style;
       return TextSpan(
         style: style,
         children: _tokenizeTextSpan(
           text,
           highlight,
-          style.copyWith(
+          (matchStyle ?? style!).copyWith(
             backgroundColor: OrgTheme.dataOf(context).highlightColor,
           ),
           charWrap ? characterWrappable : (x) => x,

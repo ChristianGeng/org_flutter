@@ -14,8 +14,10 @@ class OrgInlineSrcBlockWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     final defaultStyle = DefaultTextStyle.of(context).style;
     final orgTheme = OrgTheme.dataOf(context);
-    final codeStyle = defaultStyle.copyWith(color: orgTheme.codeColor);
-    final metaStyle = defaultStyle.copyWith(color: orgTheme.metaColor);
+    final codeStyle = orgTheme.codeStyle(defaultStyle);
+    final metaStyle = defaultStyle
+        .merge(orgTheme.codeTextStyle)
+        .copyWith(color: orgTheme.metaColor);
     return Text.rich(
       TextSpan(
         children: [

@@ -142,9 +142,7 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
       final defaultStyle = DefaultTextStyle.of(context).style;
       InlineSpan span;
       if (!supportedSrcLanguage(block.language)) {
-        final codeStyle = defaultStyle.copyWith(
-          color: OrgTheme.dataOf(context).codeColor,
-        );
+        final codeStyle = OrgTheme.dataOf(context).codeStyle(defaultStyle);
         span = TextSpan(
           children: _tokenizeText(code, refPattern)
               .map((t) {
@@ -163,6 +161,12 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
               .toList(growable: false),
         );
       } else {
+        // Coderefs and search matches become WidgetSpans, which don't
+        // inherit the enclosing span's style, so give them the full style.
+        // Plain token spans keep their own style, so nested tokens still
+        // inherit the color of the token around them.
+        final baseStyle = srcHighlightBaseStyle(context);
+        final codeTextStyle = OrgTheme.dataOf(context).codeTextStyle;
         span = buildSrcHighlightSpan(
           context,
           code: code,
@@ -170,16 +174,22 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
           spanFactory: ({String? text, TextStyle? style}) {
             if (text == null) return const TextSpan();
 
+            final widgetStyle = baseStyle.merge(style);
             final refMatch = refPattern.firstMatch(text);
             if (refMatch == null) {
-              return spanBuilder.highlightedSpan(text, style: style);
+              return spanBuilder.highlightedSpan(
+                text,
+                style: style,
+                // Without a code style, keep the previous behaviour exactly
+                matchStyle: codeTextStyle == null ? null : widgetStyle,
+              );
             }
             final refKey = refMatch.namedGroup('name')!;
             return WidgetSpan(
               child: OrgCoderefWidget(
                 text,
                 spanBuilder,
-                style: style,
+                style: codeTextStyle == null ? style : widgetStyle,
                 key: OrgLocator.of(context)?.generateCoderefKey(refKey),
               ),
             );
@@ -211,8 +221,8 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
     }
     if (block.type == 'example' || block.type == 'export') {
       body = DefaultTextStyle(
-        style: DefaultTextStyle.of(context).style
-            .copyWith(color: OrgTheme.dataOf(context).codeColor),
+        style: OrgTheme.dataOf(context)
+            .codeStyle(DefaultTextStyle.of(context).style),
         child: body,
       );
     } else if (block.type == 'verse') {
