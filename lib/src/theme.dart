@@ -230,6 +230,8 @@ class OrgThemeData {
     this.transcludeColor,
     this.rootPadding,
     this.codeTextStyle,
+    this.verbatimTextStyle,
+    this.blockTextStyle,
     Iterable<Color>? levelColors,
     Map<String, TextStyle>? srcTheme,
   }) : levelColors = levelColors == null
@@ -258,26 +260,53 @@ class OrgThemeData {
 
   final EdgeInsets? rootPadding;
 
-  /// Merged into the style of code: inline code and verbatim, inline and
-  /// block source, example and export blocks, and fixed-width areas. Set
-  /// for example a monospace `fontFamily` here when the document is shown
-  /// in a proportional font. Null leaves them in the surrounding font.
+  /// Merged into the style of inline code (`~code~`) and fixed-width areas
+  /// (`: ...` lines), like the Emacs face `org-code`. Set for example a
+  /// monospace `fontFamily` here when the document is shown in a
+  /// proportional font. Null leaves them in the surrounding font.
   ///
-  /// A color here overrides [codeColor]. In highlighted source, a [srcTheme]
-  /// entry that sets its own `fontFamily` still wins for that token. A style
-  /// with `inherit: false` replaces the surrounding style instead of being
-  /// merged into it; it still falls back to [codeColor] if it has no color.
+  /// A color here overrides [codeColor]. A style with `inherit: false`
+  /// replaces the surrounding style instead of being merged into it; it
+  /// still falls back to [codeColor] if it has no color. The same holds for
+  /// [verbatimTextStyle] and [blockTextStyle].
   final TextStyle? codeTextStyle;
 
-  /// Returns [base] with the color set to [codeColor] and [codeTextStyle]
-  /// merged on top. If [codeTextStyle] has `inherit: false`, returns it in
-  /// place of [base], with [codeColor] if it has no color of its own.
-  TextStyle codeStyle(TextStyle base) {
-    final code = codeTextStyle;
-    if (code != null && !code.inherit) {
-      return code.copyWith(color: code.color ?? codeColor);
+  /// Merged into the style of inline verbatim (`=verbatim=`), like the Emacs
+  /// face `org-verbatim`. Null leaves it in the surrounding font. See
+  /// [codeTextStyle] for how it combines with [codeColor].
+  final TextStyle? verbatimTextStyle;
+
+  /// Merged into the style of source blocks, example and export blocks, and
+  /// inline source blocks as a whole (`src_lang`, header arguments and
+  /// body), like the Emacs face `org-block`. Quote and verse blocks are not
+  /// affected. Null leaves them in the surrounding font. See
+  /// [codeTextStyle] for how it combines with [codeColor].
+  ///
+  /// In highlighted source, a [srcTheme] entry that sets its own
+  /// `fontFamily` still wins for that token.
+  final TextStyle? blockTextStyle;
+
+  /// Returns [base] styled as inline code or a fixed-width area: the color
+  /// set to [codeColor] and [codeTextStyle] merged on top.
+  TextStyle codeStyle(TextStyle base) => _codeLikeStyle(base, codeTextStyle);
+
+  /// Returns [base] styled as inline verbatim: the color set to [codeColor]
+  /// and [verbatimTextStyle] merged on top.
+  TextStyle verbatimStyle(TextStyle base) =>
+      _codeLikeStyle(base, verbatimTextStyle);
+
+  /// Returns [base] styled as the body of a source, example or export block:
+  /// the color set to [codeColor] and [blockTextStyle] merged on top.
+  TextStyle blockStyle(TextStyle base) => _codeLikeStyle(base, blockTextStyle);
+
+  /// Returns [base] with the color set to [codeColor] and [style] merged on
+  /// top. If [style] has `inherit: false`, returns it in place of [base],
+  /// with [codeColor] if it has no color of its own.
+  TextStyle _codeLikeStyle(TextStyle base, TextStyle? style) {
+    if (style != null && !style.inherit) {
+      return style.copyWith(color: style.color ?? codeColor);
     }
-    return base.copyWith(color: codeColor).merge(code);
+    return base.copyWith(color: codeColor).merge(style);
   }
 
   Color? levelColor(int level) {
@@ -290,7 +319,8 @@ class OrgThemeData {
     switch (style) {
       case OrgStyle.bold:
         return base.copyWith(fontWeight: FontWeight.bold);
-      case OrgStyle.verbatim: // fallthrough
+      case OrgStyle.verbatim:
+        return verbatimStyle(base);
       case OrgStyle.code:
         return codeStyle(base);
       case OrgStyle.italic:
@@ -333,6 +363,8 @@ class OrgThemeData {
     Map<String, TextStyle>? srcTheme,
     EdgeInsets? rootPadding,
     TextStyle? codeTextStyle,
+    TextStyle? verbatimTextStyle,
+    TextStyle? blockTextStyle,
   }) => OrgThemeData(
     todoColor: todoColor ?? this.todoColor,
     doneColor: doneColor ?? this.doneColor,
@@ -354,6 +386,8 @@ class OrgThemeData {
     srcTheme: srcTheme ?? this.srcTheme,
     rootPadding: rootPadding ?? this.rootPadding,
     codeTextStyle: codeTextStyle ?? this.codeTextStyle,
+    verbatimTextStyle: verbatimTextStyle ?? this.verbatimTextStyle,
+    blockTextStyle: blockTextStyle ?? this.blockTextStyle,
   );
 
   @override
@@ -381,7 +415,9 @@ class OrgThemeData {
         listEquals(levelColors, other.levelColors) &&
         mapEquals(srcTheme, other.srcTheme) &&
         rootPadding == other.rootPadding &&
-        codeTextStyle == other.codeTextStyle;
+        codeTextStyle == other.codeTextStyle &&
+        verbatimTextStyle == other.verbatimTextStyle &&
+        blockTextStyle == other.blockTextStyle;
   }
 
   @override
@@ -405,7 +441,7 @@ class OrgThemeData {
     levelColors == null ? null : Object.hashAll(levelColors!),
     srcTheme == null ? null : Object.hashAll(srcTheme!.keys),
     srcTheme == null ? null : Object.hashAll(srcTheme!.values),
-    Object.hash(rootPadding, codeTextStyle),
+    Object.hash(rootPadding, codeTextStyle, verbatimTextStyle, blockTextStyle),
   );
 
   // ignore: prefer_constructors_over_static_methods
@@ -434,6 +470,12 @@ class OrgThemeData {
       srcTheme: _lerpSrcThemes(a?.srcTheme, b?.srcTheme, t),
       rootPadding: EdgeInsets.lerp(a?.rootPadding, b?.rootPadding, t),
       codeTextStyle: TextStyle.lerp(a?.codeTextStyle, b?.codeTextStyle, t),
+      verbatimTextStyle: TextStyle.lerp(
+        a?.verbatimTextStyle,
+        b?.verbatimTextStyle,
+        t,
+      ),
+      blockTextStyle: TextStyle.lerp(a?.blockTextStyle, b?.blockTextStyle, t),
     );
   }
 

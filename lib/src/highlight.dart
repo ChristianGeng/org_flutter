@@ -18,13 +18,13 @@ TextSpan buildSrcHighlightSpan(
   languageId: languageId,
   theme: OrgTheme.dataOf(context).srcTheme ?? {},
   textStyle: DefaultTextStyle.of(context).style
-      .merge(OrgTheme.dataOf(context).codeTextStyle),
+      .merge(OrgTheme.dataOf(context).blockTextStyle),
   spanFactory: spanFactory,
 );
 
 /// The style highlighted source starts from, before any token style: the
 /// highlighter's monospace default, then the surrounding text style with
-/// [OrgThemeData.codeTextStyle] merged on top. Widgets placed inside
+/// [OrgThemeData.blockTextStyle] merged on top. Widgets placed inside
 /// highlighted source (coderefs, search matches) don't inherit the style of
 /// the enclosing span, so they need it explicitly.
 TextStyle srcHighlightBaseStyle(BuildContext context) {
@@ -32,7 +32,7 @@ TextStyle srcHighlightBaseStyle(BuildContext context) {
   return TextStyle(
     fontFamily: _defaultFontFamily,
     color: theme.srcTheme?[_rootKey]?.color ?? _defaultFontColor,
-  ).merge(DefaultTextStyle.of(context).style.merge(theme.codeTextStyle));
+  ).merge(DefaultTextStyle.of(context).style.merge(theme.blockTextStyle));
 }
 
 // Below copied from:

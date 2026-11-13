@@ -4,7 +4,9 @@ import 'package:org_flutter/org_flutter.dart';
 
 import './util.dart';
 
-const _mono = TextStyle(fontFamily: 'TestMono');
+const _code = TextStyle(fontFamily: 'TestCode');
+const _verbatim = TextStyle(fontFamily: 'TestVerbatim');
+const _block = TextStyle(fontFamily: 'TestBlock');
 
 const _doc = '''
 Plain text with ~inline code~ and =inline verbatim= in it.
@@ -35,14 +37,28 @@ export body
 
 : fixed width line
 
+#+RESULTS:
+: results line
+
+#+begin_quote
+quote body
+#+end_quote
+
 #+begin_verse
 verse body
 #+end_verse
 ''';
 
-const _codeNeedles = [
-  'inline code',
-  'inline verbatim',
+/// Text in [_doc] styled like the Emacs face `org-code`
+const _codeNeedles = ['inline code', 'fixed width line', 'results line'];
+
+/// Text in [_doc] styled like the Emacs face `org-verbatim`
+const _verbatimNeedles = ['inline verbatim'];
+
+/// Text in [_doc] styled like the Emacs face `org-block`
+const _blockNeedles = [
+  'sh', // The language of an inline source block
+  ':exports code', // Its header arguments
   'echo inlinesrc',
   'inlineHighlighted',
   'highlightedValue',
@@ -50,7 +66,15 @@ const _codeNeedles = [
   'no language body',
   'example body',
   'export body',
-  'fixed width line',
+];
+
+/// Text in [_doc] that none of the styles applies to
+const _otherNeedles = ['Plain text with', 'quote body', 'verse body'];
+
+const _allStyledNeedles = [
+  ..._codeNeedles,
+  ..._verbatimNeedles,
+  ..._blockNeedles,
 ];
 
 /// The effective style of the first text run containing [needle], with the
@@ -87,47 +111,158 @@ void _tallWindow(WidgetTester tester) {
   addTearDown(tester.view.reset);
 }
 
-Widget _org({TextStyle? codeTextStyle}) => wrap(
+OrgThemeData _withStyles(
+  OrgThemeData theme, {
+  TextStyle? code,
+  TextStyle? verbatim,
+  TextStyle? block,
+}) => theme.copyWith(
+  codeTextStyle: code,
+  verbatimTextStyle: verbatim,
+  blockTextStyle: block,
+);
+
+Widget _org({
+  String doc = _doc,
+  TextStyle? code,
+  TextStyle? verbatim,
+  TextStyle? block,
+}) => wrap(
   Org(
-    _doc,
-    lightTheme: OrgThemeData.light().copyWith(codeTextStyle: codeTextStyle),
-    darkTheme: OrgThemeData.dark().copyWith(codeTextStyle: codeTextStyle),
+    doc,
+    lightTheme: _withStyles(
+      OrgThemeData.light(),
+      code: code,
+      verbatim: verbatim,
+      block: block,
+    ),
+    darkTheme: _withStyles(
+      OrgThemeData.dark(),
+      code: code,
+      verbatim: verbatim,
+      block: block,
+    ),
   ),
 );
 
+Widget _searched(String doc, String query, {TextStyle? block}) {
+  final root = OrgDocument.parse(doc);
+  return wrap(
+    OrgController(
+      root: root,
+      searchQuery: query,
+      child: OrgRootWidget(
+        lightTheme: _withStyles(OrgThemeData.light(), block: block),
+        darkTheme: _withStyles(OrgThemeData.dark(), block: block),
+        child: OrgDocumentWidget(root),
+      ),
+    ),
+  );
+}
+
 void main() {
-  group('codeTextStyle', () {
-    testWidgets('Applies to code', (tester) async {
+  group('Text styles', () {
+    testWidgets('Each element gets the style of its face', (tester) async {
       _tallWindow(tester);
-      await tester.pumpWidget(_org(codeTextStyle: _mono));
+      await tester.pumpWidget(
+        _org(code: _code, verbatim: _verbatim, block: _block),
+      );
       for (final needle in _codeNeedles) {
-        expect(_styleOf(needle).fontFamily, 'TestMono', reason: needle);
+        expect(_styleOf(needle).fontFamily, 'TestCode', reason: needle);
       }
-      // The language name of an inline source block is in the code font too
-      expect(_styleOf('sh').fontFamily, 'TestMono');
-      // Without a color in codeTextStyle, code keeps codeColor
-      expect(_styleOf('example body').color, OrgThemeData.light().codeColor);
+      for (final needle in _verbatimNeedles) {
+        expect(_styleOf(needle).fontFamily, 'TestVerbatim', reason: needle);
+      }
+      for (final needle in _blockNeedles) {
+        expect(_styleOf(needle).fontFamily, 'TestBlock', reason: needle);
+      }
+      // Without a color in the styles, the elements keep codeColor
+      final codeColor = OrgThemeData.light().codeColor;
+      expect(_styleOf('inline code').color, codeColor);
+      expect(_styleOf('inline verbatim').color, codeColor);
+      expect(_styleOf('example body').color, codeColor);
     });
-    testWidgets('Color in codeTextStyle overrides codeColor', (tester) async {
+    testWidgets('Inline code and verbatim get different styles', (
+      tester,
+    ) async {
+      _tallWindow(tester);
+      await tester.pumpWidget(_org(code: _code, verbatim: _verbatim));
+      expect(_styleOf('inline code').fontFamily, 'TestCode');
+      expect(_styleOf('inline verbatim').fontFamily, 'TestVerbatim');
+    });
+    for (final (name, needles) in [
+      ('codeTextStyle', _codeNeedles),
+      ('verbatimTextStyle', _verbatimNeedles),
+      ('blockTextStyle', _blockNeedles),
+    ]) {
+      testWidgets('$name applies only to its own elements', (tester) async {
+        const only = TextStyle(fontFamily: 'TestOnly');
+        _tallWindow(tester);
+        await tester.pumpWidget(
+          _org(
+            code: name == 'codeTextStyle' ? only : null,
+            verbatim: name == 'verbatimTextStyle' ? only : null,
+            block: name == 'blockTextStyle' ? only : null,
+          ),
+        );
+        for (final needle in [..._allStyledNeedles, ..._otherNeedles]) {
+          expect(
+            _styleOf(needle).fontFamily,
+            needles.contains(needle) ? 'TestOnly' : isNot('TestOnly'),
+            reason: needle,
+          );
+        }
+      });
+    }
+    testWidgets('Color in a style overrides codeColor', (tester) async {
       const red = Color(0xffff0000);
+      const green = Color(0xff00ff00);
+      const blue = Color(0xff0000ff);
       _tallWindow(tester);
-      await tester.pumpWidget(_org(codeTextStyle: _mono.copyWith(color: red)));
-      expect(_styleOf('example body').color, red);
+      await tester.pumpWidget(
+        _org(
+          code: _code.copyWith(color: red),
+          verbatim: _verbatim.copyWith(color: green),
+          block: _block.copyWith(color: blue),
+        ),
+      );
       expect(_styleOf('inline code').color, red);
+      expect(_styleOf('fixed width line').color, red);
+      expect(_styleOf('inline verbatim').color, green);
+      expect(_styleOf('example body').color, blue);
+      expect(_styleOf('unknown language body').color, blue);
     });
-    testWidgets('Does not apply to other text', (tester) async {
+    testWidgets('Quote and verse blocks are unaffected', (tester) async {
       _tallWindow(tester);
-      await tester.pumpWidget(_org(codeTextStyle: _mono));
-      for (final needle in ['Plain text with', 'verse body']) {
-        expect(_styleOf(needle).fontFamily, isNot('TestMono'), reason: needle);
+      await tester.pumpWidget(_org());
+      final unstyled = {
+        for (final needle in _otherNeedles) needle: _styleOf(needle),
+      };
+      await tester.pumpWidget(
+        _org(code: _code, verbatim: _verbatim, block: _block),
+      );
+      for (final needle in _otherNeedles) {
+        expect(_styleOf(needle), unstyled[needle], reason: needle);
       }
     });
-    testWidgets('Null keeps code in the surrounding font', (tester) async {
+    testWidgets('Null keeps everything in the surrounding font', (
+      tester,
+    ) async {
       _tallWindow(tester);
       await tester.pumpWidget(_org());
       final surrounding = _styleOf('Plain text with').fontFamily;
-      for (final needle in _codeNeedles) {
+      for (final needle in _allStyledNeedles) {
         expect(_styleOf(needle).fontFamily, surrounding, reason: needle);
+      }
+      final codeColor = OrgThemeData.light().codeColor;
+      for (final needle in [
+        'inline code',
+        'inline verbatim',
+        'fixed width line',
+        'example body',
+        'unknown language body',
+      ]) {
+        expect(_styleOf(needle).color, codeColor, reason: needle);
       }
     });
   });
@@ -135,25 +270,23 @@ void main() {
     testWidgets('Coderef', (tester) async {
       _tallWindow(tester);
       await tester.pumpWidget(
-        wrap(
-          Org(
-            '''
+        _org(
+          doc: '''
 #+begin_src dart
 var step = 1; // (ref:step)
 #+end_src
 ''',
-            lightTheme: OrgThemeData.light().copyWith(codeTextStyle: _mono),
-            darkTheme: OrgThemeData.dark().copyWith(codeTextStyle: _mono),
-          ),
+          code: _code,
+          block: _block,
         ),
       );
-      expect(_styleOf('(ref:step)').fontFamily, 'TestMono');
+      expect(_styleOf('(ref:step)').fontFamily, 'TestBlock');
     });
     testWidgets('Nested tokens keep the enclosing color', (tester) async {
       _tallWindow(tester);
       const green = Color(0xff00aa00);
       final theme = OrgThemeData.light().copyWith(
-        codeTextStyle: _mono,
+        blockTextStyle: _block,
         srcTheme: {
           'string': const TextStyle(color: green),
           'subst': const TextStyle(fontWeight: FontWeight.bold),
@@ -175,114 +308,153 @@ var s = "a ${nestedvar} b";
       final style = _styleOf('nestedvar');
       expect(style.fontWeight, FontWeight.bold);
       expect(style.color, green);
-      expect(style.fontFamily, 'TestMono');
+      expect(style.fontFamily, 'TestBlock');
     });
     testWidgets('Search match', (tester) async {
       _tallWindow(tester);
-      final doc = OrgDocument.parse('''
+      await tester.pumpWidget(
+        _searched(
+          '''
 #+begin_src dart
 var searchme = 1;
 #+end_src
-''');
-      await tester.pumpWidget(
-        wrap(
-          OrgController(
-            root: doc,
-            searchQuery: 'searchme',
-            child: OrgRootWidget(
-              lightTheme: OrgThemeData.light().copyWith(codeTextStyle: _mono),
-              darkTheme: OrgThemeData.dark().copyWith(codeTextStyle: _mono),
-              child: OrgDocumentWidget(doc),
-            ),
-          ),
+''',
+          'searchme',
+          block: _block,
         ),
       );
-      expect(_styleOf('searchme').fontFamily, 'TestMono');
+      expect(_styleOf('searchme').fontFamily, 'TestBlock');
     });
     testWidgets('Unmatched code during search', (tester) async {
       _tallWindow(tester);
-      final doc = OrgDocument.parse('''
+      await tester.pumpWidget(
+        _searched(
+          '''
 Plain words here.
 
 #+begin_src dart
 var findme = 1; final unmatchedrun = 2;
 #+end_src
-''');
-      await tester.pumpWidget(
-        wrap(
-          OrgController(
-            root: doc,
-            searchQuery: 'findme',
-            child: OrgRootWidget(
-              lightTheme: OrgThemeData.light().copyWith(codeTextStyle: _mono),
-              darkTheme: OrgThemeData.dark().copyWith(codeTextStyle: _mono),
-              child: OrgDocumentWidget(doc),
-            ),
-          ),
+''',
+          'findme',
+          block: _block,
         ),
       );
       // The match inside the source block, and unstyled code around it
-      expect(_styleOf('findme').fontFamily, 'TestMono');
-      expect(_styleOf('unmatchedrun').fontFamily, 'TestMono');
+      expect(_styleOf('findme').fontFamily, 'TestBlock');
+      expect(_styleOf('unmatchedrun').fontFamily, 'TestBlock');
       // Plain text outside the block
-      expect(_styleOf('Plain words here').fontFamily, isNot('TestMono'));
+      expect(_styleOf('Plain words here').fontFamily, isNot('TestBlock'));
     });
   });
-  group('OrgThemeData.codeTextStyle', () {
+  group('OrgThemeData text styles', () {
+    final styled = _withStyles(
+      OrgThemeData.light(),
+      code: _code,
+      verbatim: _verbatim,
+      block: _block,
+    );
     test('copyWith', () {
-      final theme = OrgThemeData.light().copyWith(codeTextStyle: _mono);
-      expect(theme.codeTextStyle, _mono);
-      expect(theme.copyWith().codeTextStyle, _mono);
+      expect(styled.codeTextStyle, _code);
+      expect(styled.verbatimTextStyle, _verbatim);
+      expect(styled.blockTextStyle, _block);
+      final copy = styled.copyWith();
+      expect(copy.codeTextStyle, _code);
+      expect(copy.verbatimTextStyle, _verbatim);
+      expect(copy.blockTextStyle, _block);
     });
     test('equality', () {
-      final a = OrgThemeData.light().copyWith(codeTextStyle: _mono);
-      final b = OrgThemeData.light().copyWith(codeTextStyle: _mono);
-      expect(a, b);
-      expect(a.hashCode, b.hashCode);
-      expect(a == OrgThemeData.light(), isFalse);
+      final same = _withStyles(
+        OrgThemeData.light(),
+        code: _code,
+        verbatim: _verbatim,
+        block: _block,
+      );
+      expect(styled, same);
+      expect(styled.hashCode, same.hashCode);
+      expect(styled == OrgThemeData.light(), isFalse);
+      // Each field takes part on its own
+      const other = TextStyle(fontFamily: 'Other');
+      expect(styled == styled.copyWith(codeTextStyle: other), isFalse);
+      expect(styled == styled.copyWith(verbatimTextStyle: other), isFalse);
+      expect(styled == styled.copyWith(blockTextStyle: other), isFalse);
     });
     test('lerp', () {
-      final a = OrgThemeData.light().copyWith(
-        codeTextStyle: const TextStyle(fontFamily: 'TestMono', fontSize: 10),
+      TextStyle sized(double size) => TextStyle(fontSize: size);
+      final a = _withStyles(
+        OrgThemeData.light(),
+        code: sized(10),
+        verbatim: sized(20),
+        block: sized(30),
       );
-      final b = OrgThemeData.light().copyWith(
-        codeTextStyle: const TextStyle(fontFamily: 'TestMono', fontSize: 20),
+      final b = _withStyles(
+        OrgThemeData.light(),
+        code: sized(20),
+        verbatim: sized(40),
+        block: sized(60),
       );
-      expect(OrgThemeData.lerp(a, b, 0.5)?.codeTextStyle?.fontSize, 15);
+      final mid = OrgThemeData.lerp(a, b, 0.5)!;
+      expect(mid.codeTextStyle?.fontSize, 15);
+      expect(mid.verbatimTextStyle?.fontSize, 30);
+      expect(mid.blockTextStyle?.fontSize, 45);
     });
     test('lerp from null', () {
       final a = OrgThemeData.light();
-      final b = OrgThemeData.light().copyWith(codeTextStyle: _mono);
-      expect(OrgThemeData.lerp(a, b, 0)?.codeTextStyle?.fontFamily, isNull);
-      expect(OrgThemeData.lerp(a, b, 1)?.codeTextStyle?.fontFamily, 'TestMono');
+      final start = OrgThemeData.lerp(a, styled, 0)!;
+      expect(start.codeTextStyle?.fontFamily, isNull);
+      expect(start.verbatimTextStyle?.fontFamily, isNull);
+      expect(start.blockTextStyle?.fontFamily, isNull);
+      final end = OrgThemeData.lerp(a, styled, 1)!;
+      expect(end.codeTextStyle?.fontFamily, 'TestCode');
+      expect(end.verbatimTextStyle?.fontFamily, 'TestVerbatim');
+      expect(end.blockTextStyle?.fontFamily, 'TestBlock');
     });
-    test('codeStyle merges codeTextStyle on top of codeColor', () {
-      final theme = OrgThemeData.light().copyWith(codeTextStyle: _mono);
-      final style = theme.codeStyle(const TextStyle(fontSize: 12));
-      expect(style.fontFamily, 'TestMono');
-      expect(style.fontSize, 12);
-      expect(style.color, theme.codeColor);
+    test('Each helper merges its style on top of codeColor', () {
+      const base = TextStyle(fontSize: 12);
+      for (final (style, family) in [
+        (styled.codeStyle(base), 'TestCode'),
+        (styled.verbatimStyle(base), 'TestVerbatim'),
+        (styled.blockStyle(base), 'TestBlock'),
+      ]) {
+        expect(style.fontFamily, family);
+        expect(style.fontSize, 12);
+        expect(style.color, styled.codeColor);
+      }
     });
-    test('codeStyle with a non-inheriting codeTextStyle', () {
-      const code = TextStyle(inherit: false, fontFamily: 'TestMono');
-      final theme = OrgThemeData.light().copyWith(codeTextStyle: code);
-      final style = theme.codeStyle(const TextStyle(fontSize: 12));
+    test('fontStyleForOrgStyle separates code and verbatim', () {
+      const base = TextStyle();
+      expect(
+        styled.fontStyleForOrgStyle(base, OrgStyle.code).fontFamily,
+        'TestCode',
+      );
+      expect(
+        styled.fontStyleForOrgStyle(base, OrgStyle.verbatim).fontFamily,
+        'TestVerbatim',
+      );
+    });
+    test('A non-inheriting style', () {
+      const code = TextStyle(inherit: false, fontFamily: 'TestCode');
+      final theme = OrgThemeData.light().copyWith(blockTextStyle: code);
+      final style = theme.blockStyle(const TextStyle(fontSize: 12));
       // Replaces the base style, but keeps codeColor
       expect(style.inherit, isFalse);
-      expect(style.fontFamily, 'TestMono');
+      expect(style.fontFamily, 'TestCode');
       expect(style.fontSize, isNull);
       expect(style.color, theme.codeColor);
       // Its own color wins
       const red = Color(0xffff0000);
       final themeRed = OrgThemeData.light().copyWith(
-        codeTextStyle: code.copyWith(color: red),
+        verbatimTextStyle: code.copyWith(color: red),
       );
-      expect(themeRed.codeStyle(const TextStyle()).color, red);
+      expect(themeRed.verbatimStyle(const TextStyle()).color, red);
     });
-    test('codeStyle without codeTextStyle only sets codeColor', () {
+    test('Without styles, the helpers only set codeColor', () {
       const base = TextStyle(fontSize: 12, fontFamily: 'Body');
       final theme = OrgThemeData.light();
-      expect(theme.codeStyle(base), base.copyWith(color: theme.codeColor));
+      final expected = base.copyWith(color: theme.codeColor);
+      expect(theme.codeStyle(base), expected);
+      expect(theme.verbatimStyle(base), expected);
+      expect(theme.blockStyle(base), expected);
     });
   });
 }

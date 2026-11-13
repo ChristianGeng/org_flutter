@@ -142,17 +142,17 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
       final defaultStyle = DefaultTextStyle.of(context).style;
       InlineSpan span;
       if (!supportedSrcLanguage(block.language)) {
-        final codeStyle = OrgTheme.dataOf(context).codeStyle(defaultStyle);
+        final blockStyle = OrgTheme.dataOf(context).blockStyle(defaultStyle);
         span = TextSpan(
           children: _tokenizeText(code, refPattern)
               .map((t) {
                 return t.coderef == null
-                    ? spanBuilder.highlightedSpan(t.text, style: codeStyle)
+                    ? spanBuilder.highlightedSpan(t.text, style: blockStyle)
                     : WidgetSpan(
                         child: OrgCoderefWidget(
                           t.text,
                           spanBuilder,
-                          style: codeStyle,
+                          style: blockStyle,
                           key: OrgLocator.of(context)
                               ?.generateCoderefKey(t.coderef!),
                         ),
@@ -166,7 +166,7 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
         // Plain token spans keep their own style, so nested tokens still
         // inherit the color of the token around them.
         final baseStyle = srcHighlightBaseStyle(context);
-        final codeTextStyle = OrgTheme.dataOf(context).codeTextStyle;
+        final blockTextStyle = OrgTheme.dataOf(context).blockTextStyle;
         span = buildSrcHighlightSpan(
           context,
           code: code,
@@ -180,8 +180,8 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
               return spanBuilder.highlightedSpan(
                 text,
                 style: style,
-                // Without a code style, keep the previous behaviour exactly
-                matchStyle: codeTextStyle == null ? null : widgetStyle,
+                // Without a block style, keep the previous behaviour exactly
+                matchStyle: blockTextStyle == null ? null : widgetStyle,
               );
             }
             final refKey = refMatch.namedGroup('name')!;
@@ -189,7 +189,7 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
               child: OrgCoderefWidget(
                 text,
                 spanBuilder,
-                style: codeTextStyle == null ? style : widgetStyle,
+                style: blockTextStyle == null ? style : widgetStyle,
                 key: OrgLocator.of(context)?.generateCoderefKey(refKey),
               ),
             );
@@ -222,7 +222,7 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
     if (block.type == 'example' || block.type == 'export') {
       body = DefaultTextStyle(
         style: OrgTheme.dataOf(context)
-            .codeStyle(DefaultTextStyle.of(context).style),
+            .blockStyle(DefaultTextStyle.of(context).style),
         child: body,
       );
     } else if (block.type == 'verse') {
