@@ -17,9 +17,23 @@ TextSpan buildSrcHighlightSpan(
   code,
   languageId: languageId,
   theme: OrgTheme.dataOf(context).srcTheme ?? {},
-  textStyle: DefaultTextStyle.of(context).style,
+  textStyle: DefaultTextStyle.of(context).style
+      .merge(OrgTheme.dataOf(context).blockTextStyle),
   spanFactory: spanFactory,
 );
+
+/// The style highlighted source starts from, before any token style: the
+/// highlighter's monospace default, then the surrounding text style with
+/// [OrgThemeData.blockTextStyle] merged on top. Widgets placed inside
+/// highlighted source (coderefs, search matches) don't inherit the style of
+/// the enclosing span, so they need it explicitly.
+TextStyle srcHighlightBaseStyle(BuildContext context) {
+  final theme = OrgTheme.dataOf(context);
+  return TextStyle(
+    fontFamily: _defaultFontFamily,
+    color: theme.srcTheme?[_rootKey]?.color ?? _defaultFontColor,
+  ).merge(DefaultTextStyle.of(context).style.merge(theme.blockTextStyle));
+}
 
 // Below copied from:
 // https://github.com/akvelon/dart-highlighting/blob/25bc512c66d9eead9012dd129d0a12e77393b828/flutter_highlighting/lib/flutter_highlighting.dart

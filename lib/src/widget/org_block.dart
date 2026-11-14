@@ -142,19 +142,17 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
       final defaultStyle = DefaultTextStyle.of(context).style;
       InlineSpan span;
       if (!supportedSrcLanguage(block.language)) {
-        final codeStyle = defaultStyle.copyWith(
-          color: OrgTheme.dataOf(context).codeColor,
-        );
+        final blockStyle = OrgTheme.dataOf(context).blockStyle(defaultStyle);
         span = TextSpan(
           children: _tokenizeText(code, refPattern)
               .map((t) {
                 return t.coderef == null
-                    ? spanBuilder.highlightedSpan(t.text, style: codeStyle)
+                    ? spanBuilder.highlightedSpan(t.text, style: blockStyle)
                     : WidgetSpan(
                         child: OrgCoderefWidget(
                           t.text,
                           spanBuilder,
-                          style: codeStyle,
+                          style: blockStyle,
                           key: OrgLocator.of(context)
                               ?.generateCoderefKey(t.coderef!),
                         ),
@@ -163,6 +161,14 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
               .toList(growable: false),
         );
       } else {
+        // Coderefs and search matches become WidgetSpans, which don't
+        // inherit the enclosing span's style, so give them the base style
+        // with the token's style merged on top. (A style an enclosing token
+        // sets only on an intermediate span is not included.) Plain token
+        // spans keep their own style, so nested tokens still inherit the
+        // color of the token around them.
+        final baseStyle = srcHighlightBaseStyle(context);
+        final blockTextStyle = OrgTheme.dataOf(context).blockTextStyle;
         span = buildSrcHighlightSpan(
           context,
           code: code,
@@ -170,16 +176,22 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
           spanFactory: ({String? text, TextStyle? style}) {
             if (text == null) return const TextSpan();
 
+            final widgetStyle = baseStyle.merge(style);
             final refMatch = refPattern.firstMatch(text);
             if (refMatch == null) {
-              return spanBuilder.highlightedSpan(text, style: style);
+              return spanBuilder.highlightedSpan(
+                text,
+                style: style,
+                // Without a block style, keep the previous behaviour exactly
+                matchStyle: blockTextStyle == null ? null : widgetStyle,
+              );
             }
             final refKey = refMatch.namedGroup('name')!;
             return WidgetSpan(
               child: OrgCoderefWidget(
                 text,
                 spanBuilder,
-                style: style,
+                style: blockTextStyle == null ? style : widgetStyle,
                 key: OrgLocator.of(context)?.generateCoderefKey(refKey),
               ),
             );
@@ -192,7 +204,19 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
       final content = removeTrailingLineBreak(
         softDeindent(contentNode.content, indentSize),
       );
-      body = Text.rich(spanBuilder.highlightedSpan(content));
+      // Search matches are drawn as widgets with an explicit style, which
+      // the DefaultTextStyle below does not reach; so example and export
+      // blocks pass their block style here too.
+      final isBlockStyled = block.type == 'example' || block.type == 'export';
+      body = Text.rich(
+        spanBuilder.highlightedSpan(
+          content,
+          style: isBlockStyled
+              ? OrgTheme.dataOf(context)
+                    .blockStyle(DefaultTextStyle.of(context).style)
+              : null,
+        ),
+      );
     } else {
       // This feels a bit costly, but it's the easiest way to handle scenarios
       // where the body is indented *less* than the block delimiters.
@@ -211,8 +235,8 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
     }
     if (block.type == 'example' || block.type == 'export') {
       body = DefaultTextStyle(
-        style: DefaultTextStyle.of(context).style
-            .copyWith(color: OrgTheme.dataOf(context).codeColor),
+        style: OrgTheme.dataOf(context)
+            .blockStyle(DefaultTextStyle.of(context).style),
         child: body,
       );
     } else if (block.type == 'verse') {
