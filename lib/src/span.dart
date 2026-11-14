@@ -510,8 +510,8 @@ class OrgSpanBuilder {
 
   /// [text] with the current search matches highlighted. A match is drawn
   /// as a widget, which doesn't inherit the enclosing span's style, so it
-  /// gets [matchStyle] if given (the fully resolved style at that place),
-  /// otherwise [style]. When [matchStyle] is given, a null [style] stays
+  /// gets [matchStyle] if given (the style the caller resolves for that
+  /// place), otherwise [style]. When [matchStyle] is given, a null [style] stays
   /// null, so the text around the matches inherits the enclosing style.
   InlineSpan highlightedSpan(
     String text, {

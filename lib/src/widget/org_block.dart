@@ -162,9 +162,11 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
         );
       } else {
         // Coderefs and search matches become WidgetSpans, which don't
-        // inherit the enclosing span's style, so give them the full style.
-        // Plain token spans keep their own style, so nested tokens still
-        // inherit the color of the token around them.
+        // inherit the enclosing span's style, so give them the base style
+        // with the token's style merged on top. (A style an enclosing token
+        // sets only on an intermediate span is not included.) Plain token
+        // spans keep their own style, so nested tokens still inherit the
+        // color of the token around them.
         final baseStyle = srcHighlightBaseStyle(context);
         final blockTextStyle = OrgTheme.dataOf(context).blockTextStyle;
         span = buildSrcHighlightSpan(
