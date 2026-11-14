@@ -325,6 +325,32 @@ var searchme = 1;
       );
       expect(_styleOf('searchme').fontFamily, 'TestBlock');
     });
+    testWidgets('Search match in example and export blocks', (tester) async {
+      _tallWindow(tester);
+      await tester.pumpWidget(
+        _searched(
+          '''
+#+begin_example
+an examplematch here
+#+end_example
+
+#+begin_export html
+an exportmatch here
+#+end_export
+''',
+          'match',
+          block: _block,
+        ),
+      );
+      expect(_styleOf('match').fontFamily, 'TestBlock');
+      expect(
+        tester
+            .widgetList<Text>(find.byType(Text))
+            .where((t) => t.textSpan?.toPlainText() == 'match')
+            .length,
+        2,
+      );
+    });
     testWidgets('Unmatched code during search', (tester) async {
       _tallWindow(tester);
       await tester.pumpWidget(

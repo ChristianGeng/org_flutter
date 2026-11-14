@@ -202,7 +202,19 @@ class _OrgBlockWidgetState extends State<OrgBlockWidget>
       final content = removeTrailingLineBreak(
         softDeindent(contentNode.content, indentSize),
       );
-      body = Text.rich(spanBuilder.highlightedSpan(content));
+      // Search matches are drawn as widgets with an explicit style, which
+      // the DefaultTextStyle below does not reach; so example and export
+      // blocks pass their block style here too.
+      final isBlockStyled = block.type == 'example' || block.type == 'export';
+      body = Text.rich(
+        spanBuilder.highlightedSpan(
+          content,
+          style: isBlockStyled
+              ? OrgTheme.dataOf(context)
+                    .blockStyle(DefaultTextStyle.of(context).style)
+              : null,
+        ),
+      );
     } else {
       // This feels a bit costly, but it's the easiest way to handle scenarios
       // where the body is indented *less* than the block delimiters.
