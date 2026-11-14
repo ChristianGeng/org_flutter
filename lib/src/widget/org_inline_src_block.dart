@@ -15,9 +15,14 @@ class OrgInlineSrcBlockWidget extends StatelessWidget {
     final defaultStyle = DefaultTextStyle.of(context).style;
     final orgTheme = OrgTheme.dataOf(context);
     final blockStyle = orgTheme.blockStyle(defaultStyle);
-    final metaStyle = defaultStyle
-        .merge(orgTheme.blockTextStyle)
-        .copyWith(color: orgTheme.metaColor);
+    // The language keeps metaColor, unless blockTextStyle sets a color: the
+    // style applies to the inline block as a whole, as org-block does.
+    final languageStyle = defaultStyle
+        .copyWith(color: orgTheme.metaColor)
+        .merge(orgTheme.blockTextStyle);
+    final metaStyle = languageStyle.color == null
+        ? languageStyle.copyWith(color: orgTheme.metaColor)
+        : languageStyle;
     return Text.rich(
       TextSpan(
         children: [

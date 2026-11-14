@@ -79,12 +79,13 @@ const _allStyledNeedles = [
 
 /// The effective style of the first text run containing [needle], with the
 /// styles of all enclosing spans applied.
-TextStyle _styleOf(String needle) {
+TextStyle _styleOf(String needle, {bool exact = false}) {
   TextStyle? found;
   bool visit(InlineSpan span, TextStyle inherited) {
     final style = inherited.merge(span.style);
     if (span is TextSpan) {
-      if (span.text?.contains(needle) ?? false) {
+      final text = span.text;
+      if (text != null && (exact ? text == needle : text.contains(needle))) {
         found = style;
         return false;
       }
@@ -231,6 +232,17 @@ void main() {
       expect(_styleOf('inline verbatim').color, green);
       expect(_styleOf('example body').color, blue);
       expect(_styleOf('unknown language body').color, blue);
+    });
+    testWidgets('The inline source language keeps metaColor unless the '
+        'block style sets a color', (tester) async {
+      const blue = Color(0xff0000ff);
+      _tallWindow(tester);
+      await tester.pumpWidget(_org(block: _block));
+      final meta = OrgThemeData.light().metaColor;
+      expect(_styleOf('sh', exact: true).color, meta);
+      expect(_styleOf('sh', exact: true).fontFamily, 'TestBlock');
+      await tester.pumpWidget(_org(block: _block.copyWith(color: blue)));
+      expect(_styleOf('sh', exact: true).color, blue);
     });
     testWidgets('Quote and verse blocks are unaffected', (tester) async {
       _tallWindow(tester);

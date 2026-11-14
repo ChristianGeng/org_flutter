@@ -283,7 +283,8 @@ class OrgThemeData {
   /// [codeTextStyle] for how it combines with [codeColor].
   ///
   /// In highlighted source, a [srcTheme] entry that sets its own
-  /// `fontFamily` still wins for that token.
+  /// `fontFamily` still wins for that token. The language of an inline
+  /// source block keeps [metaColor] unless this style sets a color.
   final TextStyle? blockTextStyle;
 
   /// Returns [base] styled as inline code or a fixed-width area: the color
