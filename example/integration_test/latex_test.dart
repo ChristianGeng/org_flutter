@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:example/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_tex_js/flutter_tex_js.dart';
@@ -22,8 +24,11 @@ void main() {
     }
     expect(find.byType(TexImage), findsNWidgets(2));
     expect(rendered, findsNWidgets(2));
+    // Saved in the app's cache folder; CI copies it off with
+    // `adb shell run-as com.example.example cat cache/latex.png`.
     await binding.convertFlutterSurfaceToImage();
     await tester.pumpAndSettle();
-    await binding.takeScreenshot('latex');
+    final png = await binding.takeScreenshot('latex');
+    File('${Directory.systemTemp.path}/latex.png').writeAsBytesSync(png);
   });
 }
