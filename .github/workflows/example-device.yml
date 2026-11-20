@@ -37,7 +37,8 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Integration test on an emulator
+      - name: Screenshot on an emulator
+        timeout-minutes: 20
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -45,11 +46,16 @@ jobs:
           target: google_apis
           disable-animations: true
           working-directory: example
+          # Flutter's test tooling loses the app on this emulator (it is
+          # launched twice), so start the APK directly and take a screenshot.
           script: |
-            flutter test integration_test/latex_test.dart
+            adb install -r build/app/outputs/flutter-apk/app-debug.apk
+            adb shell am start -W -n com.example.example/.MainActivity
+            sleep 30
             mkdir -p screenshots
-            adb shell run-as com.example.example cat cache/latex.png > screenshots/latex.png
+            adb exec-out screencap -p > screenshots/latex.png
             ls -la screenshots
+            adb logcat -d | grep -E "flutter|TexImage" | tail -40
       - uses: actions/upload-artifact@v4
         if: always()
         with:
