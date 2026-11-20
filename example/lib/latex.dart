@@ -22,7 +22,7 @@ bool get _texSupported =>
 InlineSpan? loadLatexInline(OrgLatexInline latex) {
   if (!_texSupported) return null;
   return WidgetSpan(
-    alignment: PlaceholderAlignment.bottom,
+    alignment: PlaceholderAlignment.middle,
     child: TexImage(
       latex.content,
       displayMode: false,
